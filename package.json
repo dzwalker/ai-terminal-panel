@@ -65,7 +65,8 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "npx @vscode/vsce package"
+    "package": "npx @vscode/vsce package",
+    "publish:ovsx": "npx ovsx publish ai-terminal-panel-0.2.0.vsix -p $OVSX_TOKEN"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
