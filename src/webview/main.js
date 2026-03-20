@@ -434,7 +434,12 @@ function saveColorOverrides() {
 
 function resetColors() {
     COLOR_VARS.forEach(function(item) {
-        document.documentElement.style.removeProperty(item[0]);
+        var orig = _originalCssVars[item[0]];
+        if (orig) {
+            document.documentElement.style.setProperty(item[0], orig);
+        } else {
+            document.documentElement.style.removeProperty(item[0]);
+        }
     });
     EXTRA_COLORS.length = 0;
     saveColorOverrides();
@@ -705,10 +710,23 @@ function hideCompletionDropdown(completion) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 var _vscode;
+var _originalCssVars = {};
 
 (function() {
     const vscode = acquireVsCodeApi();
     _vscode = vscode;
+
+    // Cache the original VSCode theme CSS variable values before any user
+    // overrides are applied. Used by resetColors() to restore the theme defaults.
+    COLOR_VARS.forEach(function(item) {
+        var val = readOriginalCssVar(item[0]);
+        if (val) {
+            _originalCssVars[item[0]] = colorToHex(val);
+        } else {
+            var fallback = readCssVar(item[0]);
+            if (fallback) _originalCssVars[item[0]] = colorToHex(fallback);
+        }
+    });
 
     let autoScroll = true;
     let isRunning = false;
