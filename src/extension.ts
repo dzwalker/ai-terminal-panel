@@ -8,7 +8,11 @@ export function activate(context: vscode.ExtensionContext) {
         TerminalPanel.create(context);
     });
 
-    context.subscriptions.push(openCmd);
+    const attachCmd = vscode.commands.registerCommand('aiTerminalPanel.attachToTerminal', () => {
+        TerminalPanel.create(context);
+    });
+
+    context.subscriptions.push(openCmd, attachCmd);
 }
 
 export function deactivate() {
