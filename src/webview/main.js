@@ -665,6 +665,10 @@ var _vscode;
     document.addEventListener('keydown', function(e) {
         if (!tuiMode) return;
         if (document.activeElement === commandInput) return;
+
+        // Let native clipboard / select-all shortcuts pass through
+        if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a'].includes(e.key)) return;
+
         e.preventDefault();
         e.stopPropagation();
         const data = keyEventToAnsi(e);
@@ -892,9 +896,20 @@ var _vscode;
                 }
                 autoResize(commandInput);
             }
-        } else if (e.key === 'c' && e.ctrlKey && isRunning) {
-            e.preventDefault();
-            interrupt();
+        } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+            // Cmd+C (Mac) is always copy; Ctrl+C copies when text is selected, otherwise interrupts
+            const hasSelection = window.getSelection && window.getSelection().toString().length > 0;
+            if (e.metaKey || hasSelection) {
+                // Let the browser handle native copy
+                return;
+            }
+            if (isRunning) {
+                e.preventDefault();
+                interrupt();
+            }
+        } else if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+            // Let the browser handle native paste
+            return;
         }
     }
 

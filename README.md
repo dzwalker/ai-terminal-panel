@@ -1,22 +1,27 @@
-# Terminal Viewer
+# AI Terminal Panel
 
-A VSCode extension that displays terminal output in a **copyable webview panel**. Unlike the built-in terminal, all output is rendered as selectable HTML text — perfect for copying long outputs from tools like `claude`, `python`, `npm`, etc.
+A VSCode extension that displays terminal output in a **readable, copyable editor panel**. Optimized for AI CLI tools like Claude Code, Cursor CLI, and other streaming TUI programs.
+
+Unlike the built-in terminal, all output is rendered as selectable HTML text — perfect for reading and copying long outputs.
 
 ## Features
 
-- **Copyable output** — select and copy any part of the terminal output like normal text
+- **Copyable output** — select and copy any part of the terminal output like normal text (`Ctrl+C` / `Cmd+C`)
 - **ANSI color rendering** — full support for 16-color, 256-color, and RGB ANSI escape codes
-- **TUI mode** — supports interactive programs (vim, htop, cursor CLI) with Chinese IME input support
+- **TUI mode** — auto-detects interactive programs (claude, cursor, vim, htop) and switches to per-character input
+- **Multiple panels** — open multiple viewer windows, each with its own terminal process
 - **Mirror terminal** — a real VSCode terminal runs in the background; click "Mirror" to view it
-- **Color settings panel** — customize ANSI color mappings to match your theme
-- **Color persistence** — your color customizations are saved across sessions
+- **Color settings** — customize ANSI color mappings; changes persist across sessions
+- **i18n** — English and Chinese UI
 
 ## Usage
 
-### Open the panel
+### Open a panel
 
-- **Command Palette**: `Terminal Viewer: Open Panel`
+- **Command Palette**: `AI Terminal Panel: Open`
 - **Keyboard shortcut**: `Ctrl+Shift+T Ctrl+Shift+V` (Mac: `Cmd+Shift+T Cmd+Shift+V`)
+
+Run the command again to open additional panels.
 
 ### Run commands
 
@@ -27,31 +32,30 @@ Type any shell command in the input box and press **Enter** to execute. Output a
 | `Enter` | Execute command |
 | `Shift+Enter` | Insert newline |
 | `↑` / `↓` | Navigate command history |
-| `Ctrl+C` | Interrupt running command |
+| `Ctrl+C` / `Cmd+C` | Copy selected text, or interrupt if nothing selected |
+| `Ctrl+V` / `Cmd+V` | Paste |
 
 ### TUI mode
 
-For interactive programs (vim, htop, cursor CLI, etc.), the extension automatically detects TUI mode. You can also toggle it manually with the **⌨ TUI 模式** button.
+For interactive programs (claude, cursor, vim, htop, etc.), the extension automatically detects TUI mode when the program enters alternate screen buffer. You can also toggle it manually with the **⌨ TUI** button.
 
 In TUI mode:
-- When the input box **has focus**: type normally (supports Chinese IME), press Enter to send
+- When the input box **has focus**: type normally (supports CJK IME), press Enter to send
 - When the input box **loses focus**: keyboard input is forwarded directly to the PTY character by character
 
-### Color settings (🎨 颜色)
+### Color settings (🎨 Colors)
 
-Click the **🎨 颜色** button in the toolbar to open the color settings panel.
+Click the **🎨 Colors** button in the toolbar to open the color settings panel.
 
-#### ANSI 16色 & 主题变量
+- **ANSI 16 Colors & Theme Variables** — shows the 16 standard ANSI colors plus foreground/background. By default these read from your VSCode theme. Override any color with the picker; changes apply immediately and persist.
+- **⟳ Sync Terminal** — scans the current output for 256-color and RGB colors not in the ANSI 16-color table, and adds them as new editable entries.
+- **↺ Reset** — clears all custom overrides and reverts to the VSCode theme defaults.
 
-Shows the 16 standard ANSI colors plus foreground/background variables. By default these read from your current VSCode theme. You can override any color with the color picker — changes take effect immediately and are saved automatically.
+### Settings (⚙ Settings)
 
-#### 从 Terminal 读取
-
-Scans the current terminal output for **256-color and RGB colors** that are not already in the ANSI 16-color table, and adds them as new entries in the panel. This lets you see and customize any color that appears in your output.
-
-#### ↺ 重置
-
-Clears all custom color overrides and removes extra colors added via "从 Terminal 读取". Reverts to the current VSCode theme colors.
+- **Language** — switch between English and Chinese
+- **Terminal Size** — configure columns and rows (applies to next command)
+- **TUI Whitelist** — commands that auto-enter TUI mode (one per line)
 
 ## Architecture
 
@@ -74,30 +78,22 @@ CSS variables (--vscode-terminal-ansi*)
 Rendered colored text in webview
 ```
 
-### Color rendering paths
-
-**16 standard ANSI colors** (SGR 30–37, 90–97):
-- Rendered as `<span class="a2">` etc.
-- CSS: `.a2 { color: var(--vscode-terminal-ansiGreen) }`
-- VSCode injects theme values into `body` inline style
-
-**256-color** (SGR 38;5;N):
-- Rendered as `<span style="color: rgb(...)">` inline
-- Uses the xterm-256color palette
-
-**RGB truecolor** (SGR 38;2;R;G;B):
-- Rendered as `<span style="color: rgb(R,G,B)">` inline
-
 ## Requirements
 
-- VSCode 1.85+
+- VSCode 1.85+ (or Cursor / VSCodium)
 - Node.js (for `node-pty` native module)
 
-## Extension Settings
+## Install
 
-Color overrides are stored in VSCode's `globalState` under the key `terminal-viewer-colors` and persist across sessions.
+**Cursor / VSCodium**: search "AI Terminal Panel" in the extension marketplace (Open VSX).
+
+**VSCode**: download the `.vsix` from [GitHub Releases](https://github.com/dzwalker/ai-terminal-panel/releases), then install via `Extensions → ... → Install from VSIX`.
 
 ## Known Limitations
 
-- TUI programs that require precise terminal dimensions (e.g., full-screen editors) may have layout issues depending on the panel size
+- TUI programs that require precise terminal dimensions may have layout issues depending on the panel size
 - The "Mirror" terminal shows raw ANSI output; the webview panel shows the rendered version
+
+## License
+
+MIT
