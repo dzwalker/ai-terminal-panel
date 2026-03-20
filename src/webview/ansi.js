@@ -57,6 +57,9 @@ function processControlSequences(text) {
     // Remove ESC]...BEL or ESC]...ST (OSC sequences - window title etc)
     text = text.replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, '');
 
+    // Trim trailing blank lines to at most 2
+    text = text.replace(/\n{3,}$/, '\n\n');
+
     return text;
 }
 

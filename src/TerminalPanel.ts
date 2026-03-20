@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { PtyManager } from './PtyManager';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -59,6 +60,8 @@ export class TerminalPanel {
     private _serializeAddon: ReturnType<typeof SerializeAddon> | undefined;
     private _snapshotTimer: ReturnType<typeof setTimeout> | undefined;
     private _tuiMode = false;
+    private _pwdMarker: string | undefined;
+    private _capturedCwd: string | undefined;
 
     private _settings: ViewerSettings;
 
@@ -100,6 +103,20 @@ export class TerminalPanel {
         this._ptyManager.on('data', (sessionId: string, data: string) => {
             if (sessionId !== this._currentSessionId) return;
 
+            if (this._pwdMarker && data.includes(this._pwdMarker)) {
+                const markerIdx = data.indexOf(this._pwdMarker);
+                const afterMarker = data.substring(markerIdx + this._pwdMarker.length);
+                const newlineIdx = afterMarker.indexOf('\n');
+                const cwdLine = (newlineIdx >= 0 ? afterMarker.substring(0, newlineIdx) : afterMarker).trim();
+                if (cwdLine && fs.existsSync(cwdLine)) {
+                    this._capturedCwd = cwdLine;
+                }
+                const markerLineStart = data.lastIndexOf('\n', markerIdx);
+                const markerLineEnd = data.indexOf('\n', markerIdx);
+                data = data.substring(0, markerLineStart >= 0 ? markerLineStart : markerIdx)
+                     + (markerLineEnd >= 0 ? data.substring(markerLineEnd + 1) : '');
+            }
+
             this._writeEmitter?.fire(data);
 
             if (!this._tuiMode && TUI_ENTER_RE.test(data)) {
@@ -112,7 +129,6 @@ export class TerminalPanel {
                 this._panel.webview.postMessage({ type: 'tuiExited' });
             }
 
-            // xterm.write() is async; snapshot must happen inside the callback
             if (this._xterm) {
                 this._xterm.write(data, () => {
                     this._scheduleSnapshot();
@@ -123,10 +139,16 @@ export class TerminalPanel {
         this._ptyManager.on('exit', (sessionId: string, exitCode: number) => {
             if (sessionId !== this._currentSessionId) return;
             this._currentSessionId = undefined;
+            this._pwdMarker = undefined;
+
+            if (this._capturedCwd) {
+                this._cwd = this._capturedCwd;
+                this._capturedCwd = undefined;
+            }
 
             const sendExit = () => {
                 this._flushSnapshot();
-                this._panel.webview.postMessage({ type: 'exit', exitCode });
+                this._panel.webview.postMessage({ type: 'exit', exitCode, cwd: this._cwd });
             };
 
             // Flush with an empty write to ensure all pending data is rendered before sending exit
@@ -230,6 +252,8 @@ export class TerminalPanel {
                 const command = (msg.command as string)?.trim();
                 if (!command) return;
 
+                if (this._handleCdCommand(command)) return;
+
                 if (this._currentSessionId) {
                     this._ptyManager.kill(this._currentSessionId);
                     this._currentSessionId = undefined;
@@ -239,8 +263,18 @@ export class TerminalPanel {
 
                 this._writeEmitter?.fire(`\r\n\x1b[1;33m$ ${command}\x1b[0m\r\n`);
 
+                const isTui = this._shouldAutoTui(command);
+                let execCommand = command;
+                if (!isTui) {
+                    const pwdMarker = `__AIPANEL_CWD_${Date.now()}__`;
+                    execCommand = `${command}; __aipanel_ec=$?; echo "${pwdMarker}$(pwd)"; exit $__aipanel_ec`;
+                    this._pwdMarker = pwdMarker;
+                } else {
+                    this._pwdMarker = undefined;
+                }
+
                 this._currentSessionId = this._ptyManager.execute(
-                    command, this._cwd, this._settings.cols, this._settings.rows
+                    execCommand, this._cwd, this._settings.cols, this._settings.rows
                 );
 
                 this._panel.webview.postMessage({
@@ -249,8 +283,7 @@ export class TerminalPanel {
                     sessionId: this._currentSessionId,
                 });
 
-                // TUI whitelist auto-detection
-                if (this._shouldAutoTui(command)) {
+                if (isTui) {
                     this._tuiMode = true;
                     this._createXterm(this._settings.cols, this._settings.rows);
                     this._panel.webview.postMessage({ type: 'tuiDetected' });
@@ -289,6 +322,56 @@ export class TerminalPanel {
                 break;
             }
         }
+    }
+
+    /**
+     * Handle pure `cd` commands without spawning a PTY process.
+     * Returns true if the command was handled, false otherwise.
+     */
+    private _handleCdCommand(command: string): boolean {
+        const cdMatch = command.match(/^\s*cd\s*(.*?)\s*$/);
+        if (!cdMatch) return false;
+
+        let target = cdMatch[1];
+
+        if (!target || target === '~') {
+            target = os.homedir();
+        } else if (target === '-') {
+            return false;
+        } else if (target.startsWith('~/')) {
+            target = path.join(os.homedir(), target.slice(2));
+        } else if (!path.isAbsolute(target)) {
+            target = path.resolve(this._cwd, target);
+        }
+
+        target = path.resolve(target);
+
+        try {
+            const stat = fs.statSync(target);
+            if (!stat.isDirectory()) {
+                this._panel.webview.postMessage({
+                    type: 'cdResult',
+                    success: false,
+                    error: `cd: not a directory: ${cdMatch[1] || '~'}`,
+                });
+                return true;
+            }
+        } catch {
+            this._panel.webview.postMessage({
+                type: 'cdResult',
+                success: false,
+                error: `cd: no such file or directory: ${cdMatch[1] || '~'}`,
+            });
+            return true;
+        }
+
+        this._cwd = target;
+        this._panel.webview.postMessage({
+            type: 'cdResult',
+            success: true,
+            cwd: this._cwd,
+        });
+        return true;
     }
 
     private _shouldAutoTui(command: string): boolean {

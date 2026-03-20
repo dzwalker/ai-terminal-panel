@@ -200,12 +200,42 @@ function highlightSelectedColors() {
         }
     }
 
+    var needRebuild = _autoAddMissingExtraColors(colorKeys);
+    if (needRebuild) {
+        buildColorPanel();
+    }
+
     var rows = document.querySelectorAll('.color-row[data-color-key]');
     for (var r = 0; r < rows.length; r++) {
         if (colorKeys[rows[r].getAttribute('data-color-key')]) {
             rows[r].classList.add('color-row-active');
         }
     }
+}
+
+function _autoAddMissingExtraColors(colorKeys) {
+    var existingExtra = {};
+    for (var i = 0; i < EXTRA_COLORS.length; i++) {
+        existingExtra['extra:' + EXTRA_COLORS[i][0]] = true;
+    }
+
+    var added = 0;
+    var keys = Object.keys(colorKeys);
+    for (var j = 0; j < keys.length; j++) {
+        var key = keys[j];
+        if (key.indexOf('extra:') !== 0) continue;
+        if (existingExtra[key]) continue;
+        var hex = key.substring(6);
+        var label = 'FG ' + hex;
+        EXTRA_COLORS.push([hex, hex, label]);
+        existingExtra[key] = true;
+        added++;
+    }
+
+    if (added > 0) {
+        saveColorOverrides();
+    }
+    return added > 0;
 }
 
 document.addEventListener('selectionchange', highlightSelectedColors);
@@ -813,11 +843,12 @@ var _originalCssVars = {};
         const msg = event.data;
         if (msg.type === 'started') onCommandStarted(msg.command);
         else if (msg.type === 'snapshot') onSnapshot(msg.data);
-        else if (msg.type === 'exit') onCommandExit(msg.exitCode);
+        else if (msg.type === 'exit') onCommandExit(msg.exitCode, msg.cwd);
         else if (msg.type === 'tuiDetected') enterTuiMode();
         else if (msg.type === 'tuiExited') exitTuiMode();
         else if (msg.type === 'loadColors') applyColorOverrides(msg.overrides);
         else if (msg.type === 'loadSettings') onLoadSettings(msg.settings);
+        else if (msg.type === 'cdResult') onCdResult(msg);
     });
 
     function onLoadSettings(s) {
@@ -885,9 +916,13 @@ var _originalCssVars = {};
         if (autoScroll) scrollToBottom();
     }
 
-    function onCommandExit(exitCode) {
+    function onCommandExit(exitCode, newCwd) {
         isRunning = false;
         exitTuiMode();
+
+        if (newCwd) {
+            document.getElementById('cwdInput').value = newCwd;
+        }
 
         if (currentOutput) {
             currentOutput.classList.remove('running');
@@ -909,6 +944,36 @@ var _originalCssVars = {};
         statusText.textContent = t('status.ready');
         commandInput.focus();
         if (autoScroll) scrollToBottom();
+    }
+
+    function onCdResult(msg) {
+        var cwdInput = document.getElementById('cwdInput');
+        if (msg.success) {
+            cwdInput.value = msg.cwd;
+        } else {
+            var welcome = document.getElementById('welcomeMsg');
+            if (welcome) welcome.style.display = 'none';
+
+            var block = document.createElement('div');
+            block.className = 'message-block';
+            var header = document.createElement('div');
+            header.className = 'message-header';
+            header.innerHTML =
+                '<span class="prompt">$</span>' +
+                '<span class="cmd-text">cd</span>' +
+                '<span class="timestamp">' + new Date().toLocaleTimeString() + '</span>';
+            var output = document.createElement('div');
+            output.className = 'message-output';
+            output.textContent = msg.error;
+            var footer = document.createElement('div');
+            footer.className = 'message-footer error';
+            footer.textContent = t('exit.error') + '1';
+            block.appendChild(header);
+            block.appendChild(output);
+            block.appendChild(footer);
+            outputContainer.appendChild(block);
+            if (autoScroll) scrollToBottom();
+        }
     }
 
     function enterTuiMode() {
@@ -973,6 +1038,10 @@ var _originalCssVars = {};
         outputContainer.scrollTop = outputContainer.scrollHeight;
     }
 
+    var _isComposing = false;
+    commandInput.addEventListener('compositionstart', function() { _isComposing = true; });
+    commandInput.addEventListener('compositionend', function() { _isComposing = false; });
+
     commandInput.addEventListener('keydown', handleKeyDown);
     commandInput.addEventListener('input', function() {
         autoResize(commandInput);
@@ -1014,6 +1083,8 @@ var _originalCssVars = {};
     }, true);
 
     function handleKeyDown(e) {
+        if (e.isComposing || _isComposing) return;
+
         var dd = _completionDropdown;
         var isDropdownVisible = dd && dd.style.display !== 'none' && dd.style.display !== '';
 
@@ -1065,17 +1136,7 @@ var _originalCssVars = {};
                 showCompletionDropdown(completion, completion.suggestions, completion.index, commandInput);
                 return;
             }
-            if (tuiMode) {
-                e.preventDefault();
-                vscode.postMessage({ type: 'input', data: '\x1b[A' });
-            } else if (commandInput.selectionStart === 0) {
-                e.preventDefault();
-                if (historyIndex > 0) {
-                    historyIndex--;
-                    commandInput.value = history[historyIndex];
-                    autoResize(commandInput);
-                }
-            }
+            // Let browser handle cursor movement in textarea
         } else if (e.key === 'ArrowDown' && !e.shiftKey) {
             if ((completion.active || isDropdownVisible) && completion.suggestions && completion.suggestions.length > 0) {
                 e.preventDefault();
@@ -1085,20 +1146,7 @@ var _originalCssVars = {};
                 showCompletionDropdown(completion, completion.suggestions, completion.index, commandInput);
                 return;
             }
-            if (tuiMode) {
-                e.preventDefault();
-                vscode.postMessage({ type: 'input', data: '\x1b[B' });
-            } else {
-                e.preventDefault();
-                if (historyIndex < history.length - 1) {
-                    historyIndex++;
-                    commandInput.value = history[historyIndex];
-                } else {
-                    historyIndex = history.length;
-                    commandInput.value = '';
-                }
-                autoResize(commandInput);
-            }
+            // Let browser handle cursor movement in textarea
         } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
             const hasSelection = window.getSelection && window.getSelection().toString().length > 0;
             if (e.metaKey || hasSelection) return;
