@@ -3,7 +3,12 @@
   "displayName": "AI Terminal Panel",
   "description": "View terminal output in a readable, copyable editor panel. Optimized for AI CLI tools like Claude Code, Cursor CLI, and other streaming TUI programs.",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "dzwalker",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dzwalker/ai-terminal-panel"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -65,6 +70,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
+    "ovsx": "^0.10.9",
     "typescript": "^5.0.0",
     "vsce": "^2.15.0"
   },
