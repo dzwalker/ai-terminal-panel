@@ -2,7 +2,7 @@
   "name": "ai-terminal-panel",
   "displayName": "AI Terminal Panel",
   "description": "View terminal output in a readable, copyable editor panel. Optimized for AI CLI tools like Claude Code, Cursor CLI, and other streaming TUI programs.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "dzwalker",
   "license": "MIT",
   "repository": {
