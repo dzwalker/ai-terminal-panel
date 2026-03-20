@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS: ViewerSettings = {
     lang: 'zh',
     cols: DEFAULT_COLS,
     rows: DEFAULT_ROWS,
-    tuiWhitelist: ['claude', 'agent', 'htop', 'top', 'vim', 'vi', 'nano', 'less', 'man', 'cursor'],
+    tuiWhitelist: ['claude', 'codex', 'agent', 'htop', 'top', 'vim', 'vi', 'nano', 'less', 'man', 'cursor'],
 };
 
 const TUI_ENTER_RE = /\x1b\[\?(?:1049|47|1047)h/;
@@ -778,6 +778,48 @@ body {
 .lang-btn.active {
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
+}
+/* Tab completion dropdown */
+.completion-dropdown {
+    position: fixed;
+    z-index: 300;
+    background: var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-panel-border));
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    overflow-y: auto;
+    max-height: 240px;
+    min-width: 160px;
+    padding: 4px 0;
+    pointer-events: auto;
+}
+.completion-item {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    cursor: pointer;
+    color: var(--vscode-editorSuggestWidget-foreground, var(--vscode-editor-foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.completion-item:hover { background: var(--vscode-list-hoverBackground); }
+.completion-item.selected {
+    background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
+    color: var(--vscode-list-activeSelectionForeground, var(--vscode-focusBorder));
+}
+.completion-prefix { color: var(--vscode-descriptionForeground); }
+.completion-match { color: var(--vscode-editorSuggestWidget-foreground, var(--vscode-editor-foreground)); }
+.completion-item.selected .completion-match { color: var(--vscode-list-activeSelectionForeground, var(--vscode-focusBorder)); }
+.completion-hint {
+    padding: 3px 12px 2px;
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    margin-bottom: 3px;
 }
 `;
 

@@ -8,7 +8,9 @@ Unlike the built-in terminal, all output is rendered as selectable HTML text —
 
 - **Copyable output** — select and copy any part of the terminal output like normal text (`Ctrl+C` / `Cmd+C`)
 - **ANSI color rendering** — full support for 16-color, 256-color, and RGB ANSI escape codes
-- **TUI mode** — auto-detects interactive programs (claude, cursor, vim, htop) and switches to per-character input
+- **TUI mode** — auto-detects interactive programs (claude, codex, cursor, vim, htop) and switches to per-character input
+- **Command completion** — screen-token-based autocomplete (Tab to accept, ↑↓ to navigate, Esc to dismiss)
+- **Interactive input** — send input to running processes (SSH, REPL, etc.) even after TUI mode exits
 - **Multiple panels** — open multiple viewer windows, each with its own terminal process
 - **Mirror terminal** — a real VSCode terminal runs in the background; click "Mirror" to view it
 - **Color settings** — customize ANSI color mappings; changes persist across sessions
@@ -29,15 +31,17 @@ Type any shell command in the input box and press **Enter** to execute. Output a
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Execute command |
+| `Enter` | Execute command (or send input to running process) |
 | `Shift+Enter` | Insert newline |
-| `↑` / `↓` | Navigate command history |
+| `↑` / `↓` | Navigate command history (or completion list) |
+| `Tab` | Accept completion suggestion |
+| `Escape` | Dismiss completion |
 | `Ctrl+C` / `Cmd+C` | Copy selected text, or interrupt if nothing selected |
 | `Ctrl+V` / `Cmd+V` | Paste |
 
 ### TUI mode
 
-For interactive programs (claude, cursor, vim, htop, etc.), the extension automatically detects TUI mode when the program enters alternate screen buffer. You can also toggle it manually with the **⌨ TUI** button.
+For interactive programs (claude, codex, cursor, vim, htop, etc.), the extension automatically detects TUI mode when the program enters alternate screen buffer. You can also toggle it manually with the **⌨ TUI** button.
 
 In TUI mode:
 - When the input box **has focus**: type normally (supports CJK IME), press Enter to send

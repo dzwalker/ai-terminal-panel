@@ -110,7 +110,7 @@ function t(key) {
 }
 
 // ─── Settings ──────────────────────────────────────────────────────────────
-var DEFAULT_TUI_WHITELIST = ['claude', 'agent', 'htop', 'top', 'vim', 'vi', 'nano', 'less', 'man', 'cursor'];
+var DEFAULT_TUI_WHITELIST = ['claude', 'codex', 'agent', 'htop', 'top', 'vim', 'vi', 'nano', 'less', 'man', 'cursor'];
 var viewerSettings = {
     lang: 'zh',
     cols: 120,
@@ -599,6 +599,110 @@ function _setI18n(id, text, title) {
     if (title !== undefined) el.title = title;
 }
 
+// ─── Tab Completion ────────────────────────────────────────────────────────
+var _completionDropdown = null;
+
+function _getCompletionDropdown() {
+    if (!_completionDropdown) {
+        _completionDropdown = document.createElement('div');
+        _completionDropdown.className = 'completion-dropdown';
+        _completionDropdown.style.display = 'none';
+        document.body.appendChild(_completionDropdown);
+    }
+    return _completionDropdown;
+}
+
+function getScreenTokens(outputEl, history) {
+    var text = (outputEl.innerText || '') + ' ' + history.join(' ');
+    var seen = new Set();
+    var re = /[a-zA-Z][a-zA-Z0-9_\-\.\/\:@#]*/g;
+    var match;
+    while ((match = re.exec(text)) !== null) {
+        var tok = match[0];
+        if (tok.length >= 2 && tok.length <= 80) seen.add(tok);
+    }
+    return Array.from(seen).sort(function(a, b) {
+        return a.toLowerCase().localeCompare(b.toLowerCase());
+    });
+}
+
+function _getWordBeforeCursor(input) {
+    var pos = input.selectionStart;
+    var before = input.value.substring(0, pos);
+    var m = before.match(/([^\s]*)$/);
+    return m ? m[1] : '';
+}
+
+function _replaceWordBeforeCursor(input, newWord) {
+    var pos = input.selectionStart;
+    var text = input.value;
+    var before = text.substring(0, pos);
+    var after = text.substring(pos);
+    var newBefore = before.replace(/([^\s]*)$/, newWord);
+    input.value = newBefore + after;
+    input.selectionStart = input.selectionEnd = newBefore.length;
+}
+
+function showCompletionDropdown(completion, suggestions, selectedIdx, commandInput) {
+    var dd = _getCompletionDropdown();
+    var prefix = completion.prefix;
+
+    completion.active = true;
+    completion.suggestions = suggestions;
+    completion.index = selectedIdx;
+
+    dd.innerHTML = '';
+
+    var hint = document.createElement('div');
+    hint.className = 'completion-hint';
+    hint.textContent = suggestions.length + ' match' + (suggestions.length > 1 ? 'es' : '') + '  ·  ↑↓ navigate  ·  Tab accept  ·  Esc dismiss';
+    dd.appendChild(hint);
+
+    suggestions.slice(0, 12).forEach(function(s, i) {
+        var item = document.createElement('div');
+        item.className = 'completion-item' + (i === selectedIdx ? ' selected' : '');
+
+        var prefixSpan = document.createElement('span');
+        prefixSpan.className = 'completion-prefix';
+        prefixSpan.textContent = s.substring(0, prefix.length);
+
+        var matchSpan = document.createElement('span');
+        matchSpan.className = 'completion-match';
+        matchSpan.textContent = s.substring(prefix.length);
+
+        item.appendChild(prefixSpan);
+        item.appendChild(matchSpan);
+
+        item.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            _replaceWordBeforeCursor(commandInput, s);
+            hideCompletionDropdown(completion);
+            commandInput.focus();
+        });
+        dd.appendChild(item);
+    });
+
+    var rect = commandInput.getBoundingClientRect();
+    dd.style.display = 'block';
+    dd.style.left = rect.left + 'px';
+    dd.style.width = Math.max(rect.width, 200) + 'px';
+    dd.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    dd.style.top = 'auto';
+
+    var selectedEl = dd.querySelector('.completion-item.selected');
+    if (selectedEl) selectedEl.scrollIntoView({ block: 'nearest' });
+}
+
+function hideCompletionDropdown(completion) {
+    var dd = _completionDropdown;
+    if (dd) dd.style.display = 'none';
+    if (completion) {
+        completion.active = false;
+        completion.suggestions = [];
+        completion.index = -1;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 var _vscode;
 
@@ -613,6 +717,7 @@ var _vscode;
     const history = [];
     let historyIndex = -1;
     let tuiMode = false;
+    var completion = { active: false, suggestions: [], index: -1, prefix: '' };
 
     const outputContainer = document.getElementById('outputContainer');
     const commandInput = document.getElementById('commandInput');
@@ -640,7 +745,7 @@ var _vscode;
 
     // Send button: in TUI mode acts like Enter, otherwise normal send
     sendBtn.onclick = function() {
-        if (tuiMode) {
+        if (tuiMode || isRunning) {
             var text = commandInput.value;
             vscode.postMessage({ type: 'input', data: (text || '') + '\r' });
             commandInput.value = '';
@@ -749,7 +854,6 @@ var _vscode;
         currentBlock = block;
         currentOutput = output;
 
-        if (!tuiMode) sendBtn.disabled = true;
         interruptBtn.style.display = 'inline-block';
         statusDot.className = 'status-dot running';
         const shortCmd = command.length > 50 ? command.substring(0, 50) + '...' : command;
@@ -809,7 +913,6 @@ var _vscode;
         commandInput.placeholder = t('input.placeholder');
         statusText.textContent = t('status.ready');
         if (tuiToggleBtn) tuiToggleBtn.textContent = t('btn.tuiToggle');
-        if (isRunning) sendBtn.disabled = true;
         commandInput.focus();
     }
 
@@ -853,12 +956,72 @@ var _vscode;
     }
 
     commandInput.addEventListener('keydown', handleKeyDown);
-    commandInput.addEventListener('input', function() { autoResize(commandInput); });
+    commandInput.addEventListener('input', function() {
+        autoResize(commandInput);
+        var prefix = _getWordBeforeCursor(commandInput);
+        if (prefix.length >= 2) {
+            _autoShowCompletion(prefix);
+        } else {
+            hideCompletionDropdown(completion);
+        }
+    });
+
+    function _autoShowCompletion(prefix) {
+        var tokens = getScreenTokens(outputContainer, history);
+        var lp = prefix.toLowerCase();
+        var matches = tokens.filter(function(tok) {
+            return tok.length > prefix.length && tok.toLowerCase().startsWith(lp);
+        });
+        if (matches.length === 0) {
+            hideCompletionDropdown(completion);
+            return;
+        }
+        completion.active = true;
+        completion.suggestions = matches;
+        completion.prefix = prefix;
+        if (completion.index < 0 || completion.index >= matches.length) {
+            completion.index = 0;
+        }
+        showCompletionDropdown(completion, matches, completion.index, commandInput);
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!completion || !completion.active) return;
+        var dd = _completionDropdown;
+        if (!dd || dd.style.display === 'none' || dd.style.display === '') return;
+        var target = e.target;
+        if (target && !dd.contains(target) && target !== commandInput && !commandInput.contains(target)) {
+            hideCompletionDropdown(completion);
+        }
+    }, true);
 
     function handleKeyDown(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
+        var dd = _completionDropdown;
+        var isDropdownVisible = dd && dd.style.display !== 'none' && dd.style.display !== '';
+
+        if (e.key === 'Tab') {
+            if (completion.active || (isDropdownVisible && completion.suggestions && completion.suggestions.length > 0)) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (completion.suggestions && completion.suggestions.length > 0) {
+                    var idx = completion.index >= 0 ? completion.index : 0;
+                    _replaceWordBeforeCursor(commandInput, completion.suggestions[idx]);
+                }
+                hideCompletionDropdown(completion);
+                return;
+            }
             if (tuiMode) {
+                e.preventDefault();
+                e.stopPropagation();
+                var tabChar = e.shiftKey ? '\x1b[Z' : '\t';
+                vscode.postMessage({ type: 'input', data: tabChar });
+                return;
+            }
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            if (completion.active) hideCompletionDropdown(completion);
+            e.preventDefault();
+            if (tuiMode || isRunning) {
                 const text = commandInput.value;
                 vscode.postMessage({ type: 'input', data: (text || '') + '\r' });
                 commandInput.value = '';
@@ -866,10 +1029,24 @@ var _vscode;
             } else {
                 sendCommand();
             }
-        } else if (e.key === 'Escape' && tuiMode) {
-            e.preventDefault();
-            vscode.postMessage({ type: 'input', data: '\x1b' });
+        } else if (e.key === 'Escape') {
+            if (completion.active) {
+                e.preventDefault();
+                _replaceWordBeforeCursor(commandInput, completion.prefix);
+                hideCompletionDropdown(completion);
+            } else if (tuiMode) {
+                e.preventDefault();
+                vscode.postMessage({ type: 'input', data: '\x1b' });
+            }
         } else if (e.key === 'ArrowUp' && !e.shiftKey) {
+            if ((completion.active || isDropdownVisible) && completion.suggestions && completion.suggestions.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!completion.active) completion.active = true;
+                completion.index = (completion.index - 1 + completion.suggestions.length) % completion.suggestions.length;
+                showCompletionDropdown(completion, completion.suggestions, completion.index, commandInput);
+                return;
+            }
             if (tuiMode) {
                 e.preventDefault();
                 vscode.postMessage({ type: 'input', data: '\x1b[A' });
@@ -882,6 +1059,14 @@ var _vscode;
                 }
             }
         } else if (e.key === 'ArrowDown' && !e.shiftKey) {
+            if ((completion.active || isDropdownVisible) && completion.suggestions && completion.suggestions.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!completion.active) completion.active = true;
+                completion.index = (completion.index + 1) % completion.suggestions.length;
+                showCompletionDropdown(completion, completion.suggestions, completion.index, commandInput);
+                return;
+            }
             if (tuiMode) {
                 e.preventDefault();
                 vscode.postMessage({ type: 'input', data: '\x1b[B' });
@@ -897,18 +1082,13 @@ var _vscode;
                 autoResize(commandInput);
             }
         } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
-            // Cmd+C (Mac) is always copy; Ctrl+C copies when text is selected, otherwise interrupts
             const hasSelection = window.getSelection && window.getSelection().toString().length > 0;
-            if (e.metaKey || hasSelection) {
-                // Let the browser handle native copy
-                return;
-            }
+            if (e.metaKey || hasSelection) return;
             if (isRunning) {
                 e.preventDefault();
                 interrupt();
             }
         } else if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
-            // Let the browser handle native paste
             return;
         }
     }
