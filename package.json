@@ -1,0 +1,78 @@
+{
+  "name": "ai-terminal-panel",
+  "displayName": "AI Terminal Panel",
+  "description": "View terminal output in a readable, copyable editor panel. Optimized for AI CLI tools like Claude Code, Cursor CLI, and other streaming TUI programs.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "terminal",
+    "panel",
+    "claude",
+    "claude-code",
+    "cursor",
+    "ai",
+    "cli",
+    "tui",
+    "ansi",
+    "pty"
+  ],
+  "activationEvents": [
+    "onCommand:aiTerminalPanel.open",
+    "onCommand:aiTerminalPanel.attachToTerminal"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aiTerminalPanel.open",
+        "title": "AI Terminal Panel: Open",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "aiTerminalPanel.attachToTerminal",
+        "title": "AI Terminal Panel: Attach to Current Terminal"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "aiTerminalPanel.open",
+        "key": "ctrl+shift+t ctrl+shift+v",
+        "mac": "cmd+shift+t cmd+shift+v"
+      }
+    ],
+    "menus": {
+      "editor/title": [],
+      "terminal/context": [
+        {
+          "command": "aiTerminalPanel.attachToTerminal",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/headless": "^6.0.0",
+    "@xterm/xterm": "^6.0.0",
+    "ansi-to-html": "^0.7.2",
+    "node-pty": "^1.1.0"
+  }
+}

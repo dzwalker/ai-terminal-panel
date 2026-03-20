@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ANSI Debug</title>
+<style>
+/* 模拟 VSCode 深色主题变量 */
+:root {
+    --vscode-editor-background: #1e1e1e;
+    --vscode-editor-foreground: #d4d4d4;
+    --vscode-terminal-ansiBlack: #000000;
+    --vscode-terminal-ansiRed: #cd3131;
+    --vscode-terminal-ansiGreen: #0dbc79;
+    --vscode-terminal-ansiYellow: #e5e510;
+    --vscode-terminal-ansiBlue: #2472c8;
+    --vscode-terminal-ansiMagenta: #bc3fbc;
+    --vscode-terminal-ansiCyan: #11a8cd;
+    --vscode-terminal-ansiWhite: #e5e5e5;
+    --vscode-terminal-ansiBrightBlack: #666666;
+    --vscode-terminal-ansiBrightRed: #f14c4c;
+    --vscode-terminal-ansiBrightGreen: #23d18b;
+    --vscode-terminal-ansiBrightYellow: #f5f543;
+    --vscode-terminal-ansiBrightBlue: #3b8eea;
+    --vscode-terminal-ansiBrightMagenta: #d670d6;
+    --vscode-terminal-ansiBrightCyan: #29b8db;
+    --vscode-terminal-ansiBrightWhite: #e5e5e5;
+    --vscode-terminal-foreground: #cccccc;
+    --vscode-terminal-background: #1e1e1e;
+}
+body {
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 13px;
+    padding: 20px;
+}
+#output {
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    white-space: pre-wrap;
+    padding: 10px;
+    border: 1px solid #444;
+}
+/* ANSI color classes */
+.a0{color:var(--vscode-terminal-ansiBlack,#000000)}
+.a1{color:var(--vscode-terminal-ansiRed)}
+.a2{color:var(--vscode-terminal-ansiGreen)}
+.a3{color:var(--vscode-terminal-ansiYellow)}
+.a4{color:var(--vscode-terminal-ansiBlue)}
+.a5{color:var(--vscode-terminal-ansiMagenta)}
+.a6{color:var(--vscode-terminal-ansiCyan)}
+.a7{color:var(--vscode-terminal-ansiWhite)}
+.a8{color:var(--vscode-terminal-ansiBrightBlack)}
+.a9{color:var(--vscode-terminal-ansiBrightRed)}
+.a10{color:var(--vscode-terminal-ansiBrightGreen)}
+.a11{color:var(--vscode-terminal-ansiBrightYellow)}
+.a12{color:var(--vscode-terminal-ansiBrightBlue)}
+.a13{color:var(--vscode-terminal-ansiBrightMagenta)}
+.a14{color:var(--vscode-terminal-ansiBrightCyan)}
+.a15{color:var(--vscode-terminal-ansiBrightWhite)}
+.ab{font-weight:bold}.ad{opacity:.5}.ai{font-style:italic}.au{text-decoration:underline}
+.abg0{background:var(--vscode-terminal-ansiBlack,#000000)}
+.abg1{background:var(--vscode-terminal-ansiRed)}
+.abg2{background:var(--vscode-terminal-ansiGreen)}
+.abg3{background:var(--vscode-terminal-ansiYellow)}
+.abg4{background:var(--vscode-terminal-ansiBlue)}
+.abg5{background:var(--vscode-terminal-ansiMagenta)}
+.abg6{background:var(--vscode-terminal-ansiCyan)}
+.abg7{background:var(--vscode-terminal-ansiWhite)}
+.abg8{background:var(--vscode-terminal-ansiBrightBlack)}
+.abg9{background:var(--vscode-terminal-ansiBrightRed)}
+.abg10{background:var(--vscode-terminal-ansiBrightGreen)}
+.abg11{background:var(--vscode-terminal-ansiBrightYellow)}
+.abg12{background:var(--vscode-terminal-ansiBrightBlue)}
+.abg13{background:var(--vscode-terminal-ansiBrightMagenta)}
+.abg14{background:var(--vscode-terminal-ansiBrightCyan)}
+.abg15{background:var(--vscode-terminal-ansiBrightWhite)}
+#raw-dump { background: #111; color: #0f0; padding: 10px; font-size: 11px; white-space: pre-wrap; word-break: break-all; margin-top: 20px; border: 1px solid #333; max-height: 300px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<h2 style="color:#ccc">ANSI 颜色调试页面</h2>
+<p style="color:#888;font-size:12px">在下方粘贴原始 ANSI 文本（可包含转义序列），点击"渲染"查看效果</p>
+<textarea id="input" style="width:100%;height:120px;background:#2d2d2d;color:#ccc;border:1px solid #555;padding:8px;font-family:monospace;font-size:12px" placeholder="粘贴 ANSI 文本..."></textarea>
+<br>
+<button onclick="render()" style="margin:8px 0;padding:6px 16px;background:#0e639c;color:#fff;border:none;cursor:pointer">渲染</button>
+<button onclick="loadSample()" style="margin:8px 4px;padding:6px 16px;background:#3a3d41;color:#ccc;border:none;cursor:pointer">加载示例（claude /help 输出）</button>
+<button onclick="showRaw()" style="margin:8px 4px;padding:6px 16px;background:#3a3d41;color:#ccc;border:none;cursor:pointer">显示原始 HTML</button>
+
+<h3 style="color:#ccc;margin-top:16px">渲染结果：</h3>
+<div id="output"></div>
+
+<div id="raw-dump" style="display:none"></div>
+
+<script>
+// 加载 ansi.js
+</script>
+<script src="src/webview/ansi.js"></script>
+<script>
+function render() {
+    const raw = document.getElementById('input').value;
+    // 将 \x1b 字面量转为真正的 ESC 字符
+    const text = raw.replace(/\\x1b/g, '\x1b').replace(/\\e/gi, '\x1b').replace(/\\033/g, '\x1b').replace(/\\u001b/g, '\x1b');
+    const html = ansiToHtml(text);
+    document.getElementById('output').innerHTML = html;
+}
+
+function showRaw() {
+    const el = document.getElementById('raw-dump');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    el.textContent = document.getElementById('output').innerHTML;
+}
+
+// claude /help 的典型输出（包含 256色和各种 ANSI 颜色）
+function loadSample() {
+    // 模拟 claude CLI 的 /help 输出，包含 dim 文字
+    const sample = [
+        '\x1b[2m/model <model>\x1b[0m   Set the current model',
+        '\x1b[1m\x1b[32m\u2192 /auto-run\x1b[0m       \x1b[1mToggle Run Everything (currently disabled)\x1b[0m',
+        '\x1b[2m/plan [prompt]\x1b[0m   Create a plan or show existing plan with options',
+        '\x1b[2m/ask\x1b[0m             Toggle ask mode',
+        '\x1b[38;5;244m/debug\x1b[0m           Toggle debug mode (256-color test)',
+        '\x1b[38;2;150;150;150m/max-mode\x1b[0m        Toggle max mode (RGB color test)',
+        '\x1b[36m/clear\x1b[0m           Start a new chat session',
+        '\x1b[33m/compress\x1b[0m        Summarize the conversation',
+        '\x1b[2m/vim\x1b[0m             Toggle Vim keys',
+        '\x1b[2m\u2193 more below\x1b[0m',
+    ].join('\n');
+    document.getElementById('input').value = sample;
+    render();
+}
+
+// 自动加载示例
+window.onload = loadSample;
+</script>
+</body>
+</html>
